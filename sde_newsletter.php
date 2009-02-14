@@ -10,7 +10,7 @@
 // file name. Uncomment and edit this line to override:
 $plugin['name'] = 'sde_newsletter';
 
-$plugin['version'] = '0.3';
+$plugin['version'] = '0.4';
 $plugin['author'] = 'Small Dog Electronics, Inc.';
 $plugin['author_uri'] = 'http://www.smalldog.com/';
 $plugin['description'] = 'Implements an admin-side interface for sending Textpattern pages as email newsletters.';
@@ -146,7 +146,7 @@ function sde_newsletter_admin_tab($event, $step)
 				// grab the data from the text URL
 				$ch = curl_init($text_content_url);
 				curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-				$text_content = curl_exec($ch);
+				$text_content = html_entity_decode(curl_exec($ch), ENT_QUOTES);
 			
 				// was the html content grabbed successfully
 				if ( curl_error($ch) != 0 )
@@ -170,7 +170,6 @@ function sde_newsletter_admin_tab($event, $step)
 					
 					
 					// stitch the two contents together
-					#$email_body .= "MIME-Version: 1.0\r\nContent-Type: multipart/alternative; boundary=\"$boundary\"\r\n\r\nThis is a multi-part message in MIME format.\r\n";
 					$email_body .= "--$boundary\r\nContent-Type: text/plain; charset=us-ascii\r\nContent-Transfer-Encoding: 7bit\r\n\r\n";
 					$email_body .= $text_content."\r\n\r\n";
 					$email_body .= "--$boundary\r\nContent-Type: $html_content_type\r\nContent-Transfer-Encoding: 7bit\r\n\r\n";
@@ -213,7 +212,7 @@ function sde_newsletter_admin_tab($event, $step)
 						if ( preg_match_all('/<title>(.*)<\/title>/i', $html_content, $titles) > 0 )
 						{
 							//print_r($titles);
-							$subject = $titles[1][0]; // the first title found
+							$subject = html_entity_decode($titles[1][0], ENT_QUOTES); // the first title found
 						}
 						break;
 				}
