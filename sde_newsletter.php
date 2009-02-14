@@ -10,7 +10,7 @@
 // file name. Uncomment and edit this line to override:
 $plugin['name'] = 'sde_newsletter';
 
-$plugin['version'] = '0.2';
+$plugin['version'] = '0.3';
 $plugin['author'] = 'Small Dog Electronics, Inc.';
 $plugin['author_uri'] = 'http://www.smalldog.com/';
 $plugin['description'] = 'Implements an admin-side interface for sending Textpattern pages as email newsletters.';
@@ -54,7 +54,7 @@ function sde_newsletter_admin_tab($event, $step)
 {
 	$publish_form = '';
 	
-	$html_content_url = $text_content_url = $email_to = $email_from = $email_from_user = $email_from_other = $email_subject = $email_subject_other = $html_content = $text_content = $content_type = $email_body = '';
+	$html_content_url = $text_content_url = $email_to = $email_from = $email_from_user = $email_from_other = $email_subject = $email_subject_other = $html_content = $text_content = $content_type = $email_body = $html_content_type = '';
 	$users = array();
 	$form_validated = true;
 	$success = true;
@@ -123,6 +123,19 @@ function sde_newsletter_admin_tab($event, $step)
 					$success = false;
 					printf("<p>Error loading HTML URL content: %s.</p>\n", curl_error($ch));
 				}
+				else
+				{
+					// parse the content-type out of the HTML content
+					if ( preg_match_all('/<meta\shttp-equiv=\"Content-Type\"\scontent=\"(.*)\"\s\/?>/i', $html_content, $results) > 0 )
+					{
+						//print_r($titles);
+						$html_content_type = $results[1][0]; // the first result found
+					}
+					else
+					{
+						$html_content_type = "text/html";
+					}
+				}
 				
 				// close the curl handle
 				curl_close($ch);
@@ -152,28 +165,28 @@ function sde_newsletter_admin_tab($event, $step)
 				if ( !empty($html_content) && !empty($text_content) )
 				{
 					// build a multi-part MIME email
-					$boundary = rand(0,9)."-".rand(10000000000,9999999999)."-".rand(10000000000,9999999999)."=:".rand(10000,99999);
+					$boundary = "----=_Part_".rand(10000,99999)."_".rand(1000,9999)."_".rand(1000,9999).".".rand(1000,9999)."_";
 					$content_type = "MIME-Version: 1.0\r\nContent-Type: multipart/alternative; boundary=\"$boundary\"";
 					
 					
 					// stitch the two contents together
-					$email_body .= "MIME-Version: 1.0\r\nContent-Type: multipart/alternative; boundary=\"$boundary\"\r\n\r\nThis is a multi-part message in MIME format.\r\n";
-					$email_body .= "--$boundary\r\nContent-Type: text/plain;\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\n";
+					#$email_body .= "MIME-Version: 1.0\r\nContent-Type: multipart/alternative; boundary=\"$boundary\"\r\n\r\nThis is a multi-part message in MIME format.\r\n";
+					$email_body .= "--$boundary\r\nContent-Type: text/plain; charset=us-ascii\r\nContent-Transfer-Encoding: 7bit\r\n\r\n";
 					$email_body .= $text_content."\r\n\r\n";
-					$email_body .= "--$boundary\r\nContent-Type: text/html; charset=\"UTF-8\";\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\n";
+					$email_body .= "--$boundary\r\nContent-Type: $html_content_type\r\nContent-Transfer-Encoding: 7bit\r\n\r\n";
 					$email_body .= $html_content."\r\n\r\n";
 					$email_body .= "--$boundary--\r\n";
 				}
 				elseif ( !empty($text_content) )
 				{
 					// build the text-only email
-					$content_type = "Content-Type: text/plain";
+					$content_type = "Content-Type: text/plain; charset=us-ascii";
 					$email_body = $text_content;
 				}
 				elseif ( !empty($html_content) )
 				{
 					// build the HTML-only email
-					$content_type = "Content-Type: text/html";
+					$content_type = "Content-Type: $html_content_type";
 					$email_body = $html_content;
 				}
 				
