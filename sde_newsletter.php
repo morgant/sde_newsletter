@@ -10,7 +10,7 @@
 // file name. Uncomment and edit this line to override:
 $plugin['name'] = 'sde_newsletter';
 
-$plugin['version'] = '0.1';
+$plugin['version'] = '0.2';
 $plugin['author'] = 'Small Dog Electronics, Inc.';
 $plugin['author_uri'] = 'http://www.smalldog.com/';
 $plugin['description'] = 'Implements an admin-side interface for sending Textpattern pages as email newsletters.';
@@ -54,9 +54,10 @@ function sde_newsletter_admin_tab($event, $step)
 {
 	$publish_form = '';
 	
-	$content_url = $email_to = $email_from = $email_from_user = $email_from_other = $email_subject = $email_subject_other = '';
+	$html_content_url = $text_content_url = $email_to = $email_from = $email_from_user = $email_from_other = $email_subject = $email_subject_other = $html_content = $text_content = $content_type = $email_body = '';
 	$users = array();
 	$form_validated = true;
+	$success = true;
 	
 	pagetop('sde_publish ', ($step == 'publish' ? 'Newsletter Published' : ''));
 	
@@ -64,7 +65,8 @@ function sde_newsletter_admin_tab($event, $step)
 	if ( $step == 'publish' )
 	{
 		// grab our submitted data
-		$content_url = ps('content_url');
+		$text_content_url = ps('text_content_url');
+		$html_content_url = ps('html_content_url');
 		$email_to = ps('email_to');
 		$email_from = ps('email_from');
 		$email_from_user = ps('email_from_user');
@@ -73,7 +75,7 @@ function sde_newsletter_admin_tab($event, $step)
 		$email_subject_other = ps('email_subject_other');
 		
 		// validate the form data
-		if ( !empty($content_url) && !empty($email_to) )
+		if ( (!empty($html_content_url) || !empty($text_content_url)) && !empty($email_to) )
 		{
 			if ( $email_from == 'other' )
 			{
@@ -92,24 +94,89 @@ function sde_newsletter_admin_tab($event, $step)
 					print("<p>Error: The 'Other' field for the 'Subject' was empty.</p>\n");
 				}
 			}
+			
+			if ( empty($html_content_url) && ($email_subject != 'other') )
+			{
+				$form_validated = false;
+				print("<p>Error: If you're not going to supply HTML content, you must supply a subject.\n");
+			}
 		}
 		else
 		{
 			$form_validated = false;
-			print("<p>Error: The 'URL' and 'To' fields are required.</p>\n");
+			print("<p>Error: At least one of the 'URL' fields and the 'To' field is required.</p>\n");
 		}
 		
 		// build & send the email
 		if ( $form_validated )
 		{
-			// grab the data from the URL
-			$ch = curl_init($content_url);
-			curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-			$page_content = curl_exec($ch);
-			
-			// was the page content grabbed successfully
-			if ( curl_error($ch) == 0 )
+			if ( !empty($html_content_url) )
 			{
+				// grab the data from the HTML URL
+				$ch = curl_init($html_content_url);
+				curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+				$html_content = curl_exec($ch);
+			
+				// was the html content grabbed successfully
+				if ( curl_error($ch) != 0 )
+				{
+					$success = false;
+					printf("<p>Error loading HTML URL content: %s.</p>\n", curl_error($ch));
+				}
+				
+				// close the curl handle
+				curl_close($ch);
+			}
+			
+			if ( !empty($text_content_url) )
+			{
+				// grab the data from the text URL
+				$ch = curl_init($text_content_url);
+				curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+				$text_content = curl_exec($ch);
+			
+				// was the html content grabbed successfully
+				if ( curl_error($ch) != 0 )
+				{
+					$success = false;
+					printf("<p>Error loading text URL content: %s.</p>\n", curl_error($ch));
+				}
+				
+				// close the curl handle
+				curl_close($ch);
+			}
+			
+			if ( $success )
+			{
+				// put the email together
+				if ( !empty($html_content) && !empty($text_content) )
+				{
+					// build a multi-part MIME email
+					$boundary = rand(0,9)."-".rand(10000000000,9999999999)."-".rand(10000000000,9999999999)."=:".rand(10000,99999);
+					$content_type = "MIME-Version: 1.0\r\nContent-Type: multipart/alternative; boundary=\"$boundary\"";
+					
+					
+					// stitch the two contents together
+					$email_body .= "MIME-Version: 1.0\r\nContent-Type: multipart/alternative; boundary=\"$boundary\"\r\n\r\nThis is a multi-part message in MIME format.\r\n";
+					$email_body .= "--$boundary\r\nContent-Type: text/plain;\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\n";
+					$email_body .= $text_content."\r\n\r\n";
+					$email_body .= "--$boundary\r\nContent-Type: text/html; charset=\"UTF-8\";\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\n";
+					$email_body .= $html_content."\r\n\r\n";
+					$email_body .= "--$boundary--\r\n";
+				}
+				elseif ( !empty($text_content) )
+				{
+					// build the text-only email
+					$content_type = "Content-Type: text/plain";
+					$email_body = $text_content;
+				}
+				elseif ( !empty($html_content) )
+				{
+					// build the HTML-only email
+					$content_type = "Content-Type: text/html";
+					$email_body = $html_content;
+				}
+				
 				// build the from address
 				switch( $email_from )
 				{
@@ -130,7 +197,7 @@ function sde_newsletter_admin_tab($event, $step)
 						break;
 					case 'page_title':
 						// parse the subject out of the HTML content
-						if ( preg_match_all('/<title>(.*)<\/title>/i', $page_content, $titles) > 0 )
+						if ( preg_match_all('/<title>(.*)<\/title>/i', $html_content, $titles) > 0 )
 						{
 							//print_r($titles);
 							$subject = $titles[1][0]; // the first title found
@@ -139,7 +206,7 @@ function sde_newsletter_admin_tab($event, $step)
 				}
 				
 				// build & send the email
-				if ( mail($email_to, $subject, $page_content, "From: ".$from."\r\nContent-type: text/html") )
+				if ( mail($email_to, $subject, $email_body, "From: ".$from."\r\n".$content_type) )
 				{
 					print("<p>Email sent successfully.</p>\n");
 				}
@@ -148,22 +215,57 @@ function sde_newsletter_admin_tab($event, $step)
 					print("<p>Error: Failed to send email.</p>\n");
 				}
 			}
-			else
-			{
-				printf("<p>Error loading URL content: %s.</p>\n", curl_error($ch));
-			}
-			
-			// close the curl handle
-			curl_close($ch);
 		}
 	}
+	
+	// build the form validation javascript
+	?>
+	<script type="text/javascript">
+	function sde_newsletter_validate_submit(e)
+	{
+		var from_type, from, to;
+		
+		// determine the from address
+		var email_from_options = $("input[name='email_from']");
+		for ( i = 0; i < email_from_options.length; i++)
+		{
+		    if ( email_from_options[i].checked )
+		    {
+		    	from_type = email_from_options[i].value;
+		    }
+		}
+		if ( from_type == "textpattern_user" )
+		{
+			from_user_select = $("select[name='email_from_user']")[0];
+		    from = from_user_select.options[from_user_select.selectedIndex].value;
+		}
+		else
+		{
+		    from = $("input[name='email_from_other']")[0].value;
+		}
+		
+		// determine the to address
+		to = $("input[name='email_to']")[0].value;
+		
+		if ( !confirm("Are you sure you want to send the following email?\n\nFrom: "+from+"\nTo: "+to) )
+		{
+			e.preventDefault();
+		}
+	}
+	</script>
+	<?php
 	
 	// build the publish form
 	$publish_form .= eInput('sde_newsletter')."\n";
 	$publish_form .= sInput('publish')."\n";
 	$publish_form .= "<fieldset><legend>Publish</legend>\n";
-	$publish_form .= "<p><label for=\"content_url\">URL:</label>&nbsp;".fInput('text', 'content_url', '')."</p>\n";
-	$publish_form .= "<p><label for=\"email_to\">To:</label>&nbsp;".fInput('text', 'email_to', '')."</p>\n";
+	$publish_form .= "<fieldset><legend>Content</legend>\n";
+	$publish_form .= "<label for=\"html_content_url\">HTML Content URL:</label>&nbsp;".fInput('text', 'html_content_url', '')."<br />\n";
+	$publish_form .= "<label for=\"text_content_url\">Text Content URL:</label>&nbsp;".fInput('text', 'text_content_url', '')."\n";
+	$publish_form .= "</fieldset>\n";
+	$publish_form .= "<fieldset><legend>To</legend>\n";
+	$publish_form .= "<label for=\"email_to\">To:</label>&nbsp;".fInput('text', 'email_to', '')."\n";
+	$publish_form .= "</fieldset>\n";
 	$publish_form .= "<fieldset><legend>From:</legend>\n";
 	$publish_form .= radio('email_from', 'textpattern_user', 1)."\n";
 	$publish_form .= "<label for=\"email_from\">Textpattern user:&nbsp;\n";
@@ -181,7 +283,7 @@ function sde_newsletter_admin_tab($event, $step)
 	$publish_form .= radio('email_subject', 'page_title', 1)."&nbsp;<label>Page title</label><br />\n";
 	$publish_form .= radio('email_subject', 'other', 0)."&nbsp;<label>Other:&nbsp;".fInput('text', 'email_subject_other', '')."</label>\n";
 	$publish_form .= "</fieldset>\n";
-	$publish_form .= fInput('submit', 'publish_submit', 'Email Now')."\n";
+	$publish_form .= fInput('submit', 'publish_submit', 'Email Now', '', '', 'sde_newsletter_validate_submit(event)')."\n";
 	$publish_form .= "</fieldset>\n";
 	
 	// output the publish form
