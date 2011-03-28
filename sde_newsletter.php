@@ -10,7 +10,7 @@
 // file name. Uncomment and edit this line to override:
 $plugin['name'] = 'sde_newsletter';
 
-$plugin['version'] = '0.4';
+$plugin['version'] = '0.5';
 $plugin['author'] = 'Small Dog Electronics, Inc.';
 $plugin['author_uri'] = 'http://www.smalldog.com/';
 $plugin['description'] = 'Implements an admin-side interface for sending Textpattern pages as email newsletters.';
@@ -135,6 +135,14 @@ function sde_newsletter_admin_tab($event, $step)
 					{
 						$html_content_type = "text/html";
 					}
+
+					// wrap the HTML content lines cleanly (at 78 chars, if possible)
+					$lines = explode("\n", $html_content);
+					for ($i = 0; $i < count($lines); $i++)
+					{
+						$lines[$i] = wordwrap($lines[$i], 78, "\n");
+					}
+					$html_content = implode("\n", $lines);
 				}
 				
 				// close the curl handle
@@ -148,11 +156,19 @@ function sde_newsletter_admin_tab($event, $step)
 				curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 				$text_content = html_entity_decode(curl_exec($ch), ENT_QUOTES);
 			
-				// was the html content grabbed successfully
+				// was the text content grabbed successfully
 				if ( curl_error($ch) != 0 )
 				{
 					$success = false;
 					printf("<p>Error loading text URL content: %s.</p>\n", curl_error($ch));
+				} else {
+					// wrap the TEXT content lines cleanly (at 78 chars, if possible)
+					$lines = explode("\n", $text_content);
+					for ($i = 0; $i < count($lines); $i++)
+					{
+						$lines[$i] = wordwrap($lines[$i], 78, "\n");
+					}
+					$text_content = implode("\n", $lines);
 				}
 				
 				// close the curl handle
