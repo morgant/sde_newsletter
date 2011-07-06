@@ -10,7 +10,7 @@
 // file name. Uncomment and edit this line to override:
 $plugin['name'] = 'sde_newsletter';
 
-$plugin['version'] = '0.5.1';
+$plugin['version'] = '0.5.2';
 $plugin['author'] = 'Small Dog Electronics, Inc.';
 $plugin['author_uri'] = 'http://www.smalldog.com/';
 $plugin['description'] = 'Implements an admin-side interface for sending Textpattern pages as email newsletters.';
@@ -229,7 +229,7 @@ function sde_newsletter_admin_tab($event, $step)
 						{
 							//print_r($titles);
 							$subject = html_entity_decode($titles[1][0], ENT_QUOTES); // the first title found
-							$subject = str_replace("\n", '', $subject); // strip any newlines out of the subject
+							$subject = str_replace("\n", ' ', $subject); // strip any newlines out of the subject
 						}
 						break;
 				}
