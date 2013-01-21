@@ -10,7 +10,7 @@
 // file name. Uncomment and edit this line to override:
 $plugin['name'] = 'sde_newsletter';
 
-$plugin['version'] = '0.5.2';
+$plugin['version'] = '0.5.3';
 $plugin['author'] = 'Small Dog Electronics, Inc.';
 $plugin['author_uri'] = 'http://www.smalldog.com/';
 $plugin['description'] = 'Implements an admin-side interface for sending Textpattern pages as email newsletters.';
@@ -298,12 +298,12 @@ function sde_newsletter_admin_tab($event, $step)
 	$publish_form .= "<fieldset><legend>From:</legend>\n";
 	$publish_form .= radio('email_from', 'textpattern_user', 1)."\n";
 	$publish_form .= "<label for=\"email_from\">Textpattern user:&nbsp;\n";
-	$textpattern_users = safe_rows('email, RealName', 'txp_users', 'privs > 0');
+	$textpattern_users = safe_rows('email, RealName', 'txp_users', 'privs > 0 ORDER BY email ASC');
 	foreach ( $textpattern_users as $row )
 	{
 		$users[$row['email']] = $row['RealName'];
 	}
-	$publish_form .= selectInput('email_from_user', $users, false);
+	$publish_form .= selectInput('email_from_user', $users, '', true);
 	$publish_form .= "</label><br />\n";
 	$publish_form .= radio('email_from', 'other', 0)."\n";
 	$publish_form .= "<label for=\"email_from\">Other:&nbsp;".fInput('text', 'email_from_other', '')."</label>\n";
